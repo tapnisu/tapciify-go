@@ -7,6 +7,8 @@ import (
 	"io"
 	"math"
 	"os"
+
+	"github.com/nfnt/resize"
 )
 
 func main() {
@@ -34,7 +36,8 @@ func main() {
 
 // Get the bi-dimensional pixel array
 func toAscii(file io.Reader) (string, error) {
-	img, _, err := image.Decode(file)
+	orgImg, _, err := image.Decode(file)
+	img := resize.Resize(128, 0, orgImg, resize.Lanczos3)
 
 	if err != nil {
 		return "", err
