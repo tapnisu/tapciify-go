@@ -5,6 +5,7 @@ import (
 	"image"
 	"image/png"
 	"io"
+	"math"
 	"os"
 )
 
@@ -21,10 +22,10 @@ func main() {
 
 	defer file.Close()
 
-	pixels, err := getPixels(file)
+	pixels, err := toAscii(file)
 
 	if err != nil {
-		fmt.Println("Error: Image could not be decoded")
+		fmt.Println(err)
 		os.Exit(1)
 	}
 
@@ -32,40 +33,65 @@ func main() {
 }
 
 // Get the bi-dimensional pixel array
-func getPixels(file io.Reader) ([][]Pixel, error) {
+func toAscii(file io.Reader) (string, error) {
 	img, _, err := image.Decode(file)
 
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	bounds := img.Bounds()
 	width, height := bounds.Max.X, bounds.Max.Y
 
-	var pixels [][]Pixel
+	var output = ""
 
 	for y := 0; y < height; y++ {
-		var row []Pixel
-
 		for x := 0; x < width; x++ {
-			row = append(row, rgbaToPixel(img.At(x, y).RGBA()))
+			char, err := toAsciiCharacter(getLightness(rgbaToPixel(img.At(x, y).RGBA())))
+
+			if err != nil {
+				return "", err
+			}
+
+			output += string(char)
+
 		}
 
-		pixels = append(pixels, row)
+		output += "\n"
 	}
 
-	return pixels, nil
+	return output, nil
 }
 
 // img.At(x, y).RGBA() returns four uint32 values; we want a Pixel
-func rgbaToPixel(r uint32, g uint32, b uint32, a uint32) Pixel {
-	return Pixel{int(r / 257), int(g / 257), int(b / 257), int(a / 257)}
+func rgbaToPixel(r uint32, g uint32, b uint32, a uint32) RgbaPixel {
+	return RgbaPixel{int(r / 257), int(g / 257), int(b / 257), int(a / 257)}
 }
 
-// Pixel struct example
-type Pixel struct {
+// RgbaPixel struct example
+type RgbaPixel struct {
 	R int
 	G int
 	B int
 	A int
+}
+
+func getLightness(p RgbaPixel) float32 {
+	max := max(max(p.R, p.G), p.B)
+	min := min(min(p.R, p.G), p.B)
+
+	return float32((max+min)*p.A) / 130050
+}
+
+func toAsciiCharacter(lightness float32) (rune, error) {
+	asciiString := " .,:;+*?%S#@"
+
+	charCount := len(asciiString)
+	index := int(math.Floor(float64(charCount-1) * float64(lightness)))
+
+	if index < 0 || index >= charCount {
+		return 0, fmt.Errorf("LIGHTNESS %f IS OUT OF ARRAY", lightness)
+	}
+
+	return rune(asciiString[index]), nil
 }
